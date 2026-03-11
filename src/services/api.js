@@ -1,34 +1,61 @@
 import axios from 'axios';
 
-const API = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api',
+const api = axios.create({
+  baseURL : 'http://127.0.0.1:8000/api',
+  headers : { 'Content-Type': 'application/json' },
 });
 
-// Ajoute automatiquement le token JWT a chaque requete.
-API.interceptors.request.use((config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+// ── JWT Intercepteur ──
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const original = err.config;
+    if (err.response?.status === 401 && !original._retry) {
+      original._retry = true;
+      try {
+        const refresh = localStorage.getItem('refresh_token');
+        if (refresh) {
+          const res = await axios.post('http://127.0.0.1:8000/api/token/refresh/', { refresh });
+          localStorage.setItem('access_token', res.data.access);
+          original.headers.Authorization = `Bearer ${res.data.access}`;
+          return api(original);
+        }
+      } catch {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+      }
     }
-    return config;
+    return Promise.reject(err);
+  }
+);
+
+// ── AUTH ──
+export const registerUser   = (data) => api.post('/auth/register/', data);
+export const loginUser      = (data) => api.post('/auth/login/', data);
+export const getMe          = ()     => api.get('/auth/me/');
+
+// ── EVENTS ──
+export const getEvents      = (params) => api.get('/events/', { params });
+export const getEventById   = (id)     => api.get(`/events/${id}/`);
+export const createEvent    = (data)   => api.post('/events/create/', data, {
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
+export const updateEvent    = (id, data) => api.put(`/events/${id}/update/`, data);
+export const deleteEvent    = (id)       => api.delete(`/events/${id}/delete/`);
 
-// Authentification
-export const register = (data) => API.post('/register/', data);
-export const login = (data) => API.post('/token/', data);
-export const getMe = () => API.get('/me/');
+// ── REGISTRATIONS ──
+export const registerToEvent    = (id)  => api.post(`/events/${id}/register/`);
+export const getMyRegistrations = ()    => api.get('/registrations/');
+export const cancelRegistration = (id) => api.delete(`/registrations/${id}/cancel/`);
+export const getParticipants    = (id) => api.get(`/events/${id}/participants/`);
 
-// Evenements
-export const getEvents = () => API.get('/events/');
-export const getEvent = (id) => API.get(`/events/${id}/`);
-export const createEvent = (data) => API.post('/events/', data);
-export const updateEvent = (id, data) => API.put(`/events/${id}/`, data);
-export const deleteEvent = (id) => API.delete(`/events/${id}/`);
+// ── DASHBOARD ──
+export const getDashboardStats = () => api.get('/dashboard/stats/');
 
-// Inscriptions
-export const registerToEvent = (eventId) => API.post(`/events/${eventId}/register/`);
-export const getMyRegistrations = () => API.get('/my-registrations/');
-export const getEventParticipants = (eventId) => API.get(`/events/${eventId}/participants/`);
-
-// Dashboard
-export const getDashboard = () => API.get('/dashboard/');
+export default api;
