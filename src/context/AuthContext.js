@@ -17,9 +17,7 @@ export function AuthProvider({ children }) {
           localStorage.removeItem('refresh_token');
         })
         .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    } else { setLoading(false); }
   }, []);
 
   const login = async (email, password) => {
@@ -42,6 +40,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setUser(null);
+    window.location.href = '/';
   };
 
   return (
@@ -51,4 +50,4 @@ export function AuthProvider({ children }) {
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() { return useContext(AuthContext); }
